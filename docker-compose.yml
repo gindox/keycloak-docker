@@ -1,0 +1,67 @@
+name: keycloak
+
+services:
+  mysql:
+    container_name: mysql
+    env_file: ".env"
+    image: "mysql:latest"
+    healthcheck:
+      test: ["CMD", 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-p$$MYSQL_ROOT_PASSWORD' ]
+      timeout: 10s
+      retries: 10
+    volumes:
+      - ./data/mysql_data:/var/lib/mysql
+    # volumes:
+    #   - mysql_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: keycloak
+      MYSQL_HOST: mysql
+    networks:
+      - keycloak_network
+
+  keycloak:
+    container_name: keycloak
+    env_file: ".env"
+    build:
+      context: .
+      args:
+        KEYCLOAK_VERSION: latest
+        # KEYCLOAK_VERSION: 22.0.4
+    command: ["start", "--optimized"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      JAVA_OPTS_APPEND: -Dkeycloak.profile.feature.upload_scripts=enabled
+      KC_DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      KC_DB_URL: jdbc:mysql://mysql/keycloak
+      KC_DB_USERNAME: root
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_HOSTNAME: ${KC_HOSTNAME}
+      # KC_HOSTNAME_PORT: 8180
+      KC_HOSTNAME_URL: ${KC_HOSTNAME_URL}
+      # KC_PROXY: reencrypt
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KEYCLOAK_WELCOME_THEME: keycloak
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/certificate.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/private.key
+    ports:
+      - "8180:8080"
+      - "8443:8443"
+    volumes:
+      - ./data/keycloak/changelog.xml:/liquibase/changelog/changelog.xml
+      - ./data/keycloak/keycloak_data:/opt/jboss/keycloak/standalone/data
+      - ./conf/keycloak.cert.crt:/opt/keycloak/conf/certificate.crt
+      - ./conf/keycloak.priv.key:/opt/keycloak/conf/private.key
+    networks:
+      - keycloak_network
+
+networks:
+  keycloak_network:
+
+# volumes:
+#   mysql_data:
